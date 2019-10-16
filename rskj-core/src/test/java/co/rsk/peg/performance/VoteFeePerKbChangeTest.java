@@ -50,4 +50,23 @@ public class VoteFeePerKbChangeTest extends BridgePerformanceTestCase {
 
         BridgePerformanceTest.addStats(stats);
     }
+
+    @Test
+    public void voteFeePerKbChange_unauthorized() throws IOException {
+        BridgeStorageProviderInitializer storageInitializer = Helper.buildNoopInitializer();
+
+        ABIEncoder abiEncoder = (int executionIndex) -> Bridge.VOTE_FEE_PER_KB.encode(BigInteger.valueOf(Helper.randomCoin(Coin.MILLICOIN, 1, 100).getValue()));
+
+        TxBuilder txBuilder = (int executionIndex) -> {
+            String generator = "unauthorized";
+            ECKey sender = ECKey.fromPrivate(HashUtil.keccak256(generator.getBytes(StandardCharsets.UTF_8)));
+
+            return Helper.buildTx(sender);
+        };
+
+        ExecutionStats stats = new ExecutionStats("voteFeePerKbChange_unauthorized");
+        executeAndAverage("voteFeePerKbChange_unauthorized", 1000, abiEncoder, storageInitializer, txBuilder, Helper.getRandomHeightProvider(10), stats);
+
+        BridgePerformanceTest.addStats(stats);
+    }
 }
