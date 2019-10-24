@@ -1041,19 +1041,26 @@ public class Bridge extends PrecompiledContracts.PrecompiledContract {
     public long getLockingCap(Object[] args) {
         logger.trace("getLockingCap");
 
-        return bridgeSupport.getLockingCap().getValue();
+        Coin lockingCap = bridgeSupport.getLockingCap();
+
+        // Parse value to BTC
+        return lockingCap.divide(Coin.COIN.getValue()).getValue();
     }
 
     public boolean increaseLockingCap(Object[] args) {
         logger.trace("increaseLockingCap");
 
-        Coin newLockingCap = BridgeUtils.getCoinFromBigInteger((BigInteger)args[0]);
-
-        if (newLockingCap.getValue() <= 0) {
+        Coin newLockingCapInBTC = BridgeUtils.getCoinFromBigInteger((BigInteger) args[0]);
+        if (newLockingCapInBTC.getValue() <= 0) {
             throw new BridgeIllegalArgumentException("Locking cap must be bigger than zero");
         }
+        if (newLockingCapInBTC.compareTo(Coin.valueOf(21_000_000L)) > 0 ) {
+            throw new BridgeIllegalArgumentException("Locking cap value in BTC should be smaller than or equales to the max amount of BTC");
+        }
 
-        return bridgeSupport.increaseLockingCap(rskTx, newLockingCap);
+        Coin newLockingCapInSatoshis = newLockingCapInBTC.multiply(Coin.COIN.getValue()); // Parse the value (sent in BTC) to satoshis
+
+        return bridgeSupport.increaseLockingCap(rskTx, newLockingCapInSatoshis);
     }
 
     public static BridgeMethods.BridgeMethodExecutor activeAndRetiringFederationOnly(BridgeMethods.BridgeMethodExecutor decoratee, String funcName) {

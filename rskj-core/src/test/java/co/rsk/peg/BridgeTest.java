@@ -59,13 +59,13 @@ public class BridgeTest {
         Bridge bridge = getBridgeInstance(bridgeSupportMock);
 
         // Don't really care about the internal logic, just checking if the method is active
-        when(bridgeSupportMock.getLockingCap()).thenReturn(Coin.SATOSHI);
+        when(bridgeSupportMock.getLockingCap()).thenReturn(Coin.COIN);
 
         byte[] data = Bridge.GET_LOCKING_CAP.encode(new Object[]{ });
         byte[] result = bridge.execute(data);
-        Assert.assertEquals(Coin.SATOSHI.getValue(), ((BigInteger)Bridge.GET_LOCKING_CAP.decodeResult(result)[0]).longValue());
+        Assert.assertEquals(1L, ((BigInteger)Bridge.GET_LOCKING_CAP.decodeResult(result)[0]).longValue());
         // Also test the method itself
-        Assert.assertEquals(Coin.SATOSHI.getValue(), bridge.getLockingCap(new Object[]{ }));
+        Assert.assertEquals(1L, bridge.getLockingCap(new Object[]{ }));
     }
 
     @Test
@@ -96,11 +96,11 @@ public class BridgeTest {
         // Also test the method itself
         Assert.assertEquals(true, bridge.increaseLockingCap(new Object[]{ BigInteger.valueOf(1) }));
 
-        data = Bridge.INCREASE_LOCKING_CAP.encode(new Object[]{ Long.MAX_VALUE });
+        data = Bridge.INCREASE_LOCKING_CAP.encode(new Object[]{ 21_000_000 });
         result = bridge.execute(data);
         Assert.assertTrue((boolean)Bridge.INCREASE_LOCKING_CAP.decodeResult(result)[0]);
         // Also test the method itself
-        Assert.assertEquals(true, bridge.increaseLockingCap(new Object[]{ BigInteger.valueOf(Long.MAX_VALUE) }));
+        Assert.assertEquals(true, bridge.increaseLockingCap(new Object[]{ BigInteger.valueOf(21_000_000) }));
     }
 
     @Test
@@ -125,6 +125,11 @@ public class BridgeTest {
         // Uses the proper signature and data type, but with an invalid value
         // This will be rejected by the initial validation in the method
         data = Bridge.INCREASE_LOCKING_CAP.encode(new Object[]{ -1 });
+        result = bridge.execute(data);
+        Assert.assertNull(result);
+
+        // Uses the proper signature and data type, but with a value just above max permitted
+        data = Bridge.INCREASE_LOCKING_CAP.encode(new Object[]{ 21_000_001 });
         result = bridge.execute(data);
         Assert.assertNull(result);
 
