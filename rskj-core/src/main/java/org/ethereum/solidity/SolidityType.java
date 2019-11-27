@@ -34,6 +34,7 @@ import java.util.Arrays;
 import java.util.List;
 
 public abstract class SolidityType {
+    private final static int Int32Size = 32;
     protected String name;
 
     public SolidityType(String name) {
@@ -329,13 +330,17 @@ public abstract class SolidityType {
                 BigInteger bigInt = new BigInteger(value.toString());
                 return IntType.encodeInt(bigInt);
             } else if (value instanceof String) {
-                byte[] ret = new byte[32];
+                byte[] ret = new byte[Int32Size];
                 byte[] bytes = ((String) value).getBytes(StandardCharsets.UTF_8);
                 System.arraycopy(bytes, 0, ret, 0, bytes.length);
                 return ret;
+            } else if (value instanceof byte[]) {
+                byte[] bytes = (byte[]) value;
+                byte[] ret = new byte[Int32Size];
+                System.arraycopy(bytes, 0, ret, Int32Size - bytes.length, bytes.length);
+                return ret;
             }
-
-            return new byte[0];
+            throw new RuntimeException("Can't encode java type " + value.getClass() + " to bytes32");
         }
 
         @Override
