@@ -31,6 +31,8 @@ import co.rsk.core.RskAddress;
 import co.rsk.crypto.Keccak256;
 import co.rsk.panic.PanicProcessor;
 import co.rsk.peg.bitcoin.MerkleBranch;
+import co.rsk.peg.btcLockSender.BtcLockSender;
+import co.rsk.peg.btcLockSender.BtcLockSenderProvider;
 import co.rsk.peg.utils.BridgeEventLogger;
 import co.rsk.peg.utils.BtcTransactionFormatUtils;
 import co.rsk.peg.utils.PartialMerkleTreeFormatUtils;
@@ -42,6 +44,7 @@ import com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.lang3.tuple.Pair;
 import org.bouncycastle.util.encoders.Hex;
 import org.ethereum.config.blockchain.upgrades.ActivationConfig;
+import org.ethereum.config.blockchain.upgrades.ConsensusRule;
 import org.ethereum.core.Block;
 import org.ethereum.core.Repository;
 import org.ethereum.core.Transaction;
@@ -104,6 +107,7 @@ public class BridgeSupport {
     private final BridgeStorageProvider provider;
     private final Repository rskRepository;
     private final BridgeEventLogger eventLogger;
+    private final BtcLockSenderProvider btcLockSenderProvider;
 
     private final FederationSupport federationSupport;
 
@@ -118,6 +122,7 @@ public class BridgeSupport {
             BridgeConstants bridgeConstants,
             BridgeStorageProvider provider,
             BridgeEventLogger eventLogger,
+            BtcLockSenderProvider btcLockSenderProvider,
             Repository repository,
             Block executionBlock,
             Context btcContext,
@@ -129,6 +134,7 @@ public class BridgeSupport {
         this.rskExecutionBlock = executionBlock;
         this.bridgeConstants = bridgeConstants;
         this.eventLogger = eventLogger;
+        this.btcLockSenderProvider = btcLockSenderProvider;
         this.btcContext = btcContext;
         this.federationSupport = federationSupport;
         this.btcBlockStoreFactory = btcBlockStoreFactory;
@@ -319,13 +325,9 @@ public class BridgeSupport {
         // Specific code for lock/release/none txs
         if (BridgeUtils.isLockTx(btcTx, getLiveFederations(), btcContext, bridgeConstants)) {
             logger.debug("This is a lock tx {}", btcTx);
-            Optional<Script> scriptSig = BridgeUtils.getFirstInputScriptSig(btcTx);
-            if (!scriptSig.isPresent()) {
-                logger.warn(
-                        "[btctx:{}] First input does not spend a Pay-to-PubkeyHash {}",
-                        btcTx.getHash(),
-                        btcTx.getInput(0)
-                );
+            Optional<BtcLockSender> btcLockSenderOptional = btcLockSenderProvider.tryGetBtcLockSender(btcTx);
+            if(!btcLockSenderOptional.isPresent()) {
+                logger.warn("[btcTx:{}] Could not get BtcLockSender from Btc tx", btcTx.getHash());
                 return;
             }
 
@@ -340,12 +342,12 @@ public class BridgeSupport {
             }
             Coin totalAmount = amountToActive.add(amountToRetiring);
 
-            // Get the sender public key
-            byte[] data = scriptSig.get().getChunks().get(1).data;
-
-            // Tx is a lock tx, check whether the sender is whitelisted
-            BtcECKey senderBtcKey = BtcECKey.fromPublicOnly(data);
-            Address senderBtcAddress = new Address(btcContext.getParams(), senderBtcKey.getPubKeyHash());
+            BtcLockSender btcLockSender = btcLockSenderOptional.get();
+            Address senderBtcAddress = btcLockSender.getBTCAddress();
+            if(!txIsProcessable(btcLockSender.getType())) {
+                logger.warn("[btcTx:{}] Btc tx type not supported: {}", btcTx.getHash(), btcLockSender.getType());
+                return;
+            }
 
             // If the address is not whitelisted, then return the funds
             // using the exact same utxos sent to us.
@@ -353,6 +355,7 @@ public class BridgeSupport {
             // Otherwise, transfer SBTC to the sender of the BTC
             // The RSK account to update is the one that matches the pubkey "spent" on the first bitcoin tx input
             LockWhitelist lockWhitelist = provider.getLockWhitelist();
+
             if (!lockWhitelist.isWhitelistedFor(senderBtcAddress, totalAmount, height)) {
                 locked = false;
                 // Build the list of UTXOs in the BTC transaction sent to either the active
@@ -385,8 +388,7 @@ public class BridgeSupport {
                     panicProcessor.panic("whitelist-return-funds", String.format("whitelist money return tx build for btc tx %s error. Return was to %s. Tx %s. Value %s", btcTx.getHash(), senderBtcAddress, rskTx, totalAmount));
                 }
             } else {
-                org.ethereum.crypto.ECKey key = org.ethereum.crypto.ECKey.fromPublicOnly(data);
-                RskAddress sender = new RskAddress(key.getAddress());
+                RskAddress sender = btcLockSender.getRskAddress();
 
                 rskRepository.transfer(
                         PrecompiledContracts.BRIDGE_ADDR,
@@ -428,6 +430,11 @@ public class BridgeSupport {
             saveNewUTXOs(btcTx);
         }
         logger.info("BTC Tx {} processed in RSK", btcTxHash);
+    }
+
+    private boolean txIsProcessable(BtcLockSender.TxType txType) {
+        return txType.equals(BtcLockSender.TxType.P2PKH) ||
+                (txType.equals(BtcLockSender.TxType.P2SHP2WPKH) && activations.isActive(ConsensusRule.RSKIP143));
     }
 
     /*
