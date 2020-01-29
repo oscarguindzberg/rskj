@@ -242,17 +242,24 @@ public class BridgeSupport {
         return BridgeUtils.getFederationsNoSpendWallet(btcContext, getLiveFederations());
     }
 
-    /**
-     * In case of a lock tx: Transfers some SBTCs to the sender of the btc tx and keeps track of the new UTXOs available for spending.
-     * In case of a release tx: Keeps track of the change UTXOs, now available for spending.
-     * @param rskTx The RSK transaction
-     * @param btcTxSerialized The raw BTC tx
-     * @param height The height of the BTC block that contains the tx
-     * @param pmtSerialized The raw partial Merkle tree
-     * @throws BlockStoreException
-     * @throws IOException
-     */
     public void registerBtcTransaction(Transaction rskTx, byte[] btcTxSerialized, int height, byte[] pmtSerialized) throws IOException, BlockStoreException {
+        registerBtcTransaction(rskTx, btcTxSerialized, height, pmtSerialized, null, null, null);
+    }
+
+        /**
+         * In case of a lock tx: Transfers some SBTCs to the sender of the btc tx and keeps track of the new UTXOs available for spending.
+         * In case of a release tx: Keeps track of the change UTXOs, now available for spending.
+         * @param rskTx The RSK transaction
+         * @param btcTxSerialized The raw BTC tx
+         * @param height The height of the BTC block that contains the tx
+         * @param btcTxInBlockPmtSerialized The raw partial Merkle tree proving btcTx is included in the specified block
+         * @param btcCoinbaseTxSerialized The raw BTC coinbase tx
+         * @param coinbaseInBlockPmtSerialized The raw partial Merkle tree proving the BTC coinbase tx is included in the specified BTC block
+         * @param btcTxWitnessInCoinbasePmtSerialized The raw partial Merkle tree proving the BTC tx is included in the BTC coinbase tx's witness commitment
+         * @throws BlockStoreException
+         * @throws IOException
+         */
+    public void registerBtcTransaction(Transaction rskTx, byte[] btcTxSerialized, int height, byte[] btcTxInBlockPmtSerialized, byte[] btcCoinbaseTxSerialized, byte[] coinbaseInBlockPmtSerialized, byte[] btcTxWitnessInCoinbasePmtSerialized) throws IOException, BlockStoreException {
         Context.propagate(btcContext);
 
         Sha256Hash btcTxHash = BtcTransactionFormatUtils.calculateBtcTxHash(btcTxSerialized);
@@ -282,13 +289,13 @@ public class BridgeSupport {
             return;
         }
 
-        if (!PartialMerkleTreeFormatUtils.hasExpectedSize(pmtSerialized)) {
+        if (!PartialMerkleTreeFormatUtils.hasExpectedSize(btcTxInBlockPmtSerialized)) {
             throw new BridgeIllegalArgumentException("PartialMerkleTree doesn't have expected size");
         }
 
         Sha256Hash merkleRoot;
         try {
-            PartialMerkleTree pmt = new PartialMerkleTree(bridgeConstants.getBtcParams(), pmtSerialized, 0);
+            PartialMerkleTree pmt = new PartialMerkleTree(bridgeConstants.getBtcParams(), btcTxInBlockPmtSerialized, 0);
             List<Sha256Hash> hashesInPmt = new ArrayList<>();
             merkleRoot = pmt.getTxnHashAndMerkleRoot(hashesInPmt);
             if (!hashesInPmt.contains(btcTxHash)) {
@@ -296,7 +303,7 @@ public class BridgeSupport {
                 return;
             }
         } catch (VerificationException e) {
-            throw new BridgeIllegalArgumentException(String.format("PartialMerkleTree could not be parsed {}", Hex.toHexString(pmtSerialized)), e);
+            throw new BridgeIllegalArgumentException(String.format("PartialMerkleTree could not be parsed {}", Hex.toHexString(btcTxInBlockPmtSerialized)), e);
         }
 
         if (BtcTransactionFormatUtils.getInputsCount(btcTxSerialized) == 0) {
