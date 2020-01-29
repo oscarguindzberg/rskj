@@ -456,7 +456,7 @@ public enum BridgeMethods {
                     new String[]{"int256"},
                     new String[]{"bool"}
             ),
-            fixedCost(8_000L),
+            fixedCost(6_000L),
             (BridgeMethodExecutorTyped) Bridge::increaseLockingCap,
             activations -> activations.isActive(RSKIP134),
             false
