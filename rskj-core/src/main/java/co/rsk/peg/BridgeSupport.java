@@ -306,11 +306,14 @@ public class BridgeSupport {
             throw new BridgeIllegalArgumentException(String.format("PartialMerkleTree could not be parsed {}", Hex.toHexString(btcTxInBlockPmtSerialized)), e);
         }
 
-        if (BtcTransactionFormatUtils.getInputsCount(btcTxSerialized) == 0) {
-            logger.warn("Btc Tx {} has no inputs ", btcTxHash);
-            // this is the exception thrown by co.rsk.bitcoinj.core.BtcTransaction#verify when there are no inputs.
-            throw new VerificationException.EmptyInputsOrOutputs();
-        }
+        // Comment out check that only works when tx is serialized without witnesses
+        // btcTx.verify() does the same check afterwards, so I don't understand why this is checked here
+        // in the first place.
+//        if (BtcTransactionFormatUtils.getInputsCount(btcTxSerialized) == 0) {
+//            logger.warn("Btc Tx {} has no inputs ", btcTxHash);
+//            // this is the exception thrown by co.rsk.bitcoinj.core.BtcTransaction#verify when there are no inputs.
+//            throw new VerificationException.EmptyInputsOrOutputs();
+//        }
 
         // Check the the merkle root equals merkle root of btc block at specified height in the btc best chain
         // BTC blockstore is available since we've already queried the best chain height
