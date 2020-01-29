@@ -329,10 +329,9 @@ public class BridgeSupport {
         // Specific code for lock/release/none txs
         if (BridgeUtils.isLockTx(btcTx, getLiveFederations(), btcContext, bridgeConstants)) {
             logger.debug("This is a lock tx {}", btcTx);
-            Optional<Script> scriptSig = BridgeUtils.getFirstInputScriptSig(btcTx);
-            if (!scriptSig.isPresent()) {
+            if (BridgeUtils.isValidLockTx(btcTx)) {
                 logger.warn(
-                        "[btctx:{}] First input does not spend a Pay-to-PubkeyHash {}",
+                        "[btctx:{}] First input does not spend a P2PKH / P2PWKH / P2PWKH-P2SH {}",
                         btcTx.getHash(),
                         btcTx.getInput(0)
                 );
@@ -351,7 +350,19 @@ public class BridgeSupport {
             Coin totalAmount = amountToActive.add(amountToRetiring);
 
             // Get the sender public key
-            byte[] data = scriptSig.get().getChunks().get(1).data;
+            TransactionInput firstInput = btcTx.getInput(0);
+            Script firstScriptSig = firstInput.getScriptSig();
+            byte[] data = null;
+            if (BridgeUtils.spendsP2PKH(firstScriptSig)) {
+                data = firstScriptSig.getChunks().get(1).data;
+            }
+            TransactionWitness firstWitness = btcTx.getWitness(0);
+            if (BridgeUtils.spendsP2WPKH(firstScriptSig, firstWitness)) {
+                data = firstWitness.getPush(1);
+            }
+            if (BridgeUtils.spendsP2WPKHNestedInP2SH(firstScriptSig, firstWitness)) {
+                data = firstWitness.getPush(1);
+            }
 
             // Tx is a lock tx, check whether the sender is whitelisted
             BtcECKey senderBtcKey = BtcECKey.fromPublicOnly(data);

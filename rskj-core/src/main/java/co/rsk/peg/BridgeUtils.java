@@ -82,7 +82,7 @@ public class BridgeUtils {
     }
 
     /**
-     * Indicates whether a tx is a valid lock tx or not, checking the first input's script sig
+     * Indicates whether a tx is a valid lock tx or not, checking the first input's script sig and witness
      * @param tx
      * @return
      */
@@ -90,20 +90,35 @@ public class BridgeUtils {
         if (tx.getInputs().size() == 0) {
             return false;
         }
-        // This indicates that the tx is a P2PKH transaction which is the only one we support for now
-        return tx.getInput(0).getScriptSig().getChunks().size() == 2;
+        TransactionInput firstInput = tx.getInput(0);
+        Script firstScriptSig = firstInput.getScriptSig();
+        if (spendsP2PKH(firstScriptSig)) {
+            return true;
+        }
+        TransactionWitness firstWitness = tx.getWitness(0);
+        if (spendsP2WPKH(firstScriptSig, firstWitness)) {
+            return true;
+        }
+        if (spendsP2WPKHNestedInP2SH(firstScriptSig, firstWitness)) {
+            return true;
+        }
+
+        return false;
     }
 
-    /**
-     * Will return a valid scriptsig for the first input
-     * @param tx
-     * @return
-     */
-    public static Optional<Script> getFirstInputScriptSig(BtcTransaction tx) {
-        if (!isValidLockTx(tx)) {
-            return Optional.empty();
-        }
-        return Optional.of(tx.getInput(0).getScriptSig());
+    public static boolean spendsP2PKH(Script scriptSig) {
+        // Returns true if the sender is spending a P2PKH output
+        return scriptSig.getChunks().size() == 2;
+    }
+
+    public static boolean spendsP2WPKH(Script scriptSig, TransactionWitness witness) {
+        // Returns true if the sender is spending a P2WPKH output
+        return scriptSig.getChunks().size() == 0 && witness.getPushCount() == 2;
+    }
+
+    public static boolean spendsP2WPKHNestedInP2SH(Script scriptSig, TransactionWitness witness) {
+        // Returns true if the sender is spending a P2WPKH-P2SH output
+        return scriptSig.getChunks().size() == 1 && witness.getPushCount() == 2;
     }
 
     /**
