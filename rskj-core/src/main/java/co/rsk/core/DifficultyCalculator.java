@@ -48,7 +48,7 @@ public class DifficultyCalculator {
         return getBlockDifficulty(header, parentHeader, constants);
     }
 
-    private static BlockDifficulty getBlockDifficulty(
+    private BlockDifficulty getBlockDifficulty(
             BlockHeader curBlockHeader,
             BlockHeader parent,
             Constants constants) {
@@ -58,6 +58,11 @@ public class DifficultyCalculator {
         long curBlockTS = curBlockHeader.getTimestamp();
         int duration = constants.getDurationLimit();
         BigInteger difDivisor = constants.getDifficultyBoundDivisor();
+        if (activationConfig.isActive(ConsensusRule.RSKIP97, curBlockHeader.getNumber())
+            && constants.getChainId() != Constants.REGTEST_CHAIN_ID) {
+            // Unless we are in regtest, this RSKIP increments the difficulty divisor from 50 to 400
+            difDivisor = BigInteger.valueOf(400);
+        }
         BlockDifficulty minDif = constants.getMinimumDifficulty();
         return calcDifficultyWithTimeStamps(curBlockTS, parentBlockTS, pd, uncleCount, duration, difDivisor, minDif);
     }
