@@ -58,7 +58,7 @@ public class DifficultyCalculator {
         long curBlockTS = curBlockHeader.getTimestamp();
         int duration = constants.getDurationLimit();
         BigInteger difDivisor = constants.getDifficultyBoundDivisor();
-        if (activationConfig.isActive(ConsensusRule.RSKIP97, curBlockHeader.getNumber())
+        if (activationConfig.isActive(ConsensusRule.RSKIP156, curBlockHeader.getNumber())
             && constants.getChainId() != Constants.REGTEST_CHAIN_ID) {
             // Unless we are in regtest, this RSKIP increments the difficulty divisor from 50 to 400
             difDivisor = BigInteger.valueOf(400);

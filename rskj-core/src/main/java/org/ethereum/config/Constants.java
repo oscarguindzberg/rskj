@@ -89,7 +89,7 @@ public class Constants {
     }
 
     public BigInteger getDifficultyBoundDivisor() {
-        // divisor used since inception until the RSKIPXX
+        // divisor used since inception until the RSKIP156
         return difficultyBoundDivisor;
     }
 
