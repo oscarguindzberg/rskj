@@ -262,6 +262,8 @@ public class BridgeSupport {
     public void registerBtcTransaction(Transaction rskTx, byte[] btcTxSerialized, int height, byte[] btcTxInBlockPmtSerialized, byte[] btcCoinbaseTxSerialized, byte[] coinbaseInBlockPmtSerialized, byte[] btcTxWitnessInCoinbasePmtSerialized) throws IOException, BlockStoreException {
         Context.propagate(btcContext);
 
+        // TODO: calcultating tx hash this way is WRONG if the tx is serialized using segwit serialization
+        // Think whether parsing tx first is problematic.
         Sha256Hash btcTxHash = BtcTransactionFormatUtils.calculateBtcTxHash(btcTxSerialized);
         // Check the tx was not already processed
         if (getBtcTxHashProcessedHeight(btcTxHash) > -1L) {
@@ -338,11 +340,14 @@ public class BridgeSupport {
             throw new BridgeIllegalArgumentException("coinbaseInBlockPmtSerialized doesn't have expected size");
         }
 
+        // TODO: calcultating tx hash this way is WRONG if the tx is serialized using segwit serialization
+        // Think whether parsing tx first is problematic.
         Sha256Hash btcCoinbaseTxHash = BtcTransactionFormatUtils.calculateBtcTxHash(btcCoinbaseTxSerialized);
         try {
             PartialMerkleTree pmt = new PartialMerkleTree(bridgeConstants.getBtcParams(), coinbaseInBlockPmtSerialized, 0);
             List<Sha256Hash> hashesInPmt = new ArrayList<>();
             merkleRoot = pmt.getTxnHashAndMerkleRoot(hashesInPmt);
+            // TODO: Check not only coinbase is included in the pmt, but check it is the first tx of the block
             if (!hashesInPmt.contains(btcCoinbaseTxHash)) {
                 logger.warn("Supplied Btc Coinbase Tx {} is not in the supplied partial merkle tree", btcCoinbaseTxHash);
                 return;
@@ -364,6 +369,7 @@ public class BridgeSupport {
             return;
         }
 
+        // Check btcTx.verify()
 
         BtcTransaction btcTx = new BtcTransaction(bridgeConstants.getBtcParams(), btcTxSerialized);
         btcTx.verify();
@@ -411,6 +417,7 @@ public class BridgeSupport {
 
             // Tx is a lock tx, check whether the sender is whitelisted
             BtcECKey senderBtcKey = BtcECKey.fromPublicOnly(data);
+            //TODO: this only works for P2PKH, not for P2WPKH nor P2WPKH-P2SH
             Address senderBtcAddress = new Address(btcContext.getParams(), senderBtcKey.getPubKeyHash());
 
             // Confirm we should process this lock
