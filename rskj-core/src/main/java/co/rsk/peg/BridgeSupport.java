@@ -374,6 +374,13 @@ public class BridgeSupport {
         BtcTransaction btcTx = new BtcTransaction(bridgeConstants.getBtcParams(), btcTxSerialized);
         btcTx.verify();
 
+        // check btcCoinbaseTx.verify() and btcCoinbaseTx.isCoinBase()
+        BtcTransaction btcCoinbaseTx = new BtcTransaction(bridgeConstants.getBtcParams(), btcCoinbaseTxSerialized);
+        btcCoinbaseTx.verify();
+        if (!btcCoinbaseTx.isCoinBase()) {
+            throw new BridgeIllegalArgumentException("btcCoinbaseTx.isCoinBase() returned false.");
+        }
+
         boolean locked = true;
 
         Federation activeFederation = getActiveFederation();
