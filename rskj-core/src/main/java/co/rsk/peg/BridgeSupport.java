@@ -381,6 +381,44 @@ public class BridgeSupport {
             throw new BridgeIllegalArgumentException("btcCoinbaseTx.isCoinBase() returned false.");
         }
 
+        // check wtxid included in coinbase commitment
+
+        Sha256Hash witnessRoot = null;
+
+        if (!PartialMerkleTreeFormatUtils.hasExpectedSize(btcTxWitnessInCoinbasePmtSerialized)) {
+            throw new BridgeIllegalArgumentException("btcTxWitnessInCoinbasePmtSerialized doesn't have expected size");
+        }
+
+        Sha256Hash btcWtxid = btcTx.getHash(true);
+        try {
+            PartialMerkleTree pmt = new PartialMerkleTree(bridgeConstants.getBtcParams(), btcTxWitnessInCoinbasePmtSerialized, 0);
+            List<Sha256Hash> hashesInPmt = new ArrayList<>();
+            witnessRoot = pmt.getTxnHashAndMerkleRoot(hashesInPmt);
+            if (!hashesInPmt.contains(btcWtxid)) {
+                logger.warn("Supplied Btc Tx with witness {} is not in the supplied partial merkle tree", btcWtxid);
+                return;
+            }
+        } catch (VerificationException e) {
+            throw new BridgeIllegalArgumentException(String.format("coinbaseInBlockPmtSerialized could not be parsed {}", Hex.toHexString(coinbaseInBlockPmtSerialized)), e);
+        }
+
+        Sha256Hash coinbaseWitnessCommitment = btcCoinbaseTx.findWitnessCommitment();
+        if (coinbaseWitnessCommitment == null) {
+            throw new BridgeIllegalArgumentException("witnessCommitment in coinbase is null.");
+        }
+        byte[] witnessReserved = getWitnessReservedValue(btcCoinbaseTx);
+        if (witnessReserved == null) {
+            throw new BridgeIllegalArgumentException("witnessReserved in coinbase invalid.");
+        }
+
+        Sha256Hash calculatedWitnessCommitment = calculateWitnessCommitment(witnessRoot.getReversedBytes(), witnessReserved);
+        if (!calculatedWitnessCommitment.equals(coinbaseWitnessCommitment))
+            throw new BridgeIllegalArgumentException("Witness merkle root invalid. Expected " + coinbaseWitnessCommitment.toString()
+                    + " but got " + calculatedWitnessCommitment.toString());
+
+
+
+
         boolean locked = true;
 
         Federation activeFederation = getActiveFederation();
@@ -471,6 +509,25 @@ public class BridgeSupport {
             saveNewUTXOs(btcTx);
         }
         logger.info("BTC Tx {} processed in RSK", btcTxHash);
+    }
+
+    /** Extracts the reserved value from a coinbase transaction. */
+    private byte[] getWitnessReservedValue(BtcTransaction btcCoinbaseTx) {
+        byte[] witnessReserved = null;
+        TransactionWitness witness = btcCoinbaseTx.getWitness(0);
+        if (witness.getPushCount() != 1)
+            // Coinbase witness reserved invalid: push count
+            return null;
+        witnessReserved = witness.getPush(0);
+        if (witnessReserved.length != 32)
+            // Coinbase witness reserved invalid: length
+            return null;
+        return witnessReserved;
+    }
+
+
+    private Sha256Hash calculateWitnessCommitment(byte[] witnessRoot, byte[] witnessReserved) {
+        return Sha256Hash.twiceOf(witnessRoot, witnessReserved);
     }
 
     /**
