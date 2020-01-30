@@ -289,8 +289,10 @@ public class BridgeSupport {
             return;
         }
 
+        // Check btcTx is included in the block
+
         if (!PartialMerkleTreeFormatUtils.hasExpectedSize(btcTxInBlockPmtSerialized)) {
-            throw new BridgeIllegalArgumentException("PartialMerkleTree doesn't have expected size");
+            throw new BridgeIllegalArgumentException("btcTxInBlockPmtSerialized doesn't have expected size");
         }
 
         Sha256Hash merkleRoot;
@@ -303,7 +305,7 @@ public class BridgeSupport {
                 return;
             }
         } catch (VerificationException e) {
-            throw new BridgeIllegalArgumentException(String.format("PartialMerkleTree could not be parsed {}", Hex.toHexString(btcTxInBlockPmtSerialized)), e);
+            throw new BridgeIllegalArgumentException(String.format("btcTxInBlockPmtSerialized could not be parsed {}", Hex.toHexString(btcTxInBlockPmtSerialized)), e);
         }
 
         // Comment out check that only works when tx is serialized without witnesses
