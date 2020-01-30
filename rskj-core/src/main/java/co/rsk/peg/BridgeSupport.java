@@ -332,6 +332,39 @@ public class BridgeSupport {
             return;
         }
 
+        // Check btcCoinbaseTx is included in the block
+
+        if (!PartialMerkleTreeFormatUtils.hasExpectedSize(coinbaseInBlockPmtSerialized)) {
+            throw new BridgeIllegalArgumentException("coinbaseInBlockPmtSerialized doesn't have expected size");
+        }
+
+        Sha256Hash btcCoinbaseTxHash = BtcTransactionFormatUtils.calculateBtcTxHash(btcCoinbaseTxSerialized);
+        try {
+            PartialMerkleTree pmt = new PartialMerkleTree(bridgeConstants.getBtcParams(), coinbaseInBlockPmtSerialized, 0);
+            List<Sha256Hash> hashesInPmt = new ArrayList<>();
+            merkleRoot = pmt.getTxnHashAndMerkleRoot(hashesInPmt);
+            if (!hashesInPmt.contains(btcCoinbaseTxHash)) {
+                logger.warn("Supplied Btc Coinbase Tx {} is not in the supplied partial merkle tree", btcCoinbaseTxHash);
+                return;
+            }
+        } catch (VerificationException e) {
+            throw new BridgeIllegalArgumentException(String.format("coinbaseInBlockPmtSerialized could not be parsed {}", Hex.toHexString(coinbaseInBlockPmtSerialized)), e);
+        }
+
+        // Check the the merkle root equals merkle root of btc block at specified height in the btc best chain
+        if (!blockHeader.getMerkleRoot().equals(merkleRoot)) {
+            String panicMessage = String.format(
+                    "Btc Coinbase Tx %s Supplied merkle root %s does not match block's merkle root %s",
+                    btcCoinbaseTxHash.toString(),
+                    merkleRoot,
+                    blockHeader.getMerkleRoot()
+            );
+            logger.warn(panicMessage);
+            panicProcessor.panic("btclock", panicMessage);
+            return;
+        }
+
+
         BtcTransaction btcTx = new BtcTransaction(bridgeConstants.getBtcParams(), btcTxSerialized);
         btcTx.verify();
 
